@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
-from rag_agent import RAGAgent
 import numpy as np
 import time
 import plotly.express as px
@@ -113,7 +112,7 @@ anomalies = detect_anomalies(df)
 
 # Check OpenAI key
 if not os.getenv("OPENAI_API_KEY"):
-    st.warning("⚠️ OPENAI_API_KEY not set—AI features disabled.")
+    st.warning("\u26a0\ufe0f OPENAI_API_KEY not set—AI features disabled.")
 
 # Initialize AI agents and advanced features
 @st.cache_resource
@@ -145,6 +144,9 @@ features = init_features(df)
 # Header
 st.markdown('<h1 class="main-header">FinanceGuard AI</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align:center;font-size:1.3rem;color:#5a6c7d;">Advanced Retail Financial Intelligence & Automation Platform</p>', unsafe_allow_html=True)
+
+# The rest of the app code continues unchanged...
+# (tabs, dashboards, assistants, charts, etc.)
 
 # Top metrics bar
 cols = st.columns(5)
