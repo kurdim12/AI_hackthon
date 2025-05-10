@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+from rag_agent import RAGAgent
 import numpy as np
 import time
 import plotly.express as px
