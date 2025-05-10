@@ -270,7 +270,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 For support and questions:
 - Create an issue on GitHub
-- Contact: support@financeguard-ai.com
+- Contact: abdalrhmankurdi12@gmial.com
 - Documentation: docs.financeguard-ai.com
 
 ---
