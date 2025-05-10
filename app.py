@@ -446,14 +446,362 @@ with tabs[3]:
                     st.info("Detailed analysis loading...")
 
 # Tab 5: Advanced AI Features
+# Tab 5: Advanced AI Features
 with tabs[4]:
     st.header("🚀 Advanced AI Features")
-    # ... (same as before) ...
+    
+    # Advanced AI Models
+    st.subheader("🧩 Advanced AI Models")
+    
+    model_col1, model_col2 = st.columns(2)
+    
+    with model_col1:
+        st.write("**Predictive Failure Prevention (PFP)**")
+        
+        # Test transaction for prediction
+        test_transaction = {
+            'branch': st.selectbox("Test Branch", df['branch_name'].unique()),
+            'hour': st.slider("Hour of Day", 0, 23, 12),
+            'amount': st.number_input("Transaction Amount", min_value=0.0, value=float(df['transaction_amount'].mean()))
+        }
+        
+        if st.button("Predict Risk"):
+            prediction = features['pfp'].calculate_pfp_score(test_transaction)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Risk Score", f"{prediction['score']:.2f}")
+            with col2:
+                st.metric("Risk Level", prediction['risk_level'])
+            with col3:
+                st.metric("Failure Probability", f"{prediction['failure_probability']*100:.1f}%")
+            
+            if prediction['recommendation']:
+                st.info(f"**Recommendation:** {prediction['recommendation']}")
+    
+    with model_col2:
+        st.write("**Smart Transaction Router**")
+        
+        active_routes = features['router'].smart_route(df.groupby('branch_name').agg({'is_failed': 'mean'}).to_dict()['is_failed'])
+        
+        st.write("Current Active Routes:")
+        for branch, route_info in active_routes.items():
+            status_color = "🟢" if route_info['status'] == "Normal" else "🟡"
+            st.write(f"{status_color} **{branch}**: {route_info['status']}")
+            if route_info['status'] != "Normal":
+                st.write(f"   ↳ {route_info['recommendation']}")
+    
+    st.divider()
+    
+    # AI Insights
+    st.subheader("🔍 Deep AI Insights")
+    
+    ai_insight_type = st.selectbox(
+        "Select Analysis Type",
+        ["Pattern Recognition", "Causal Analysis", "Impact Prediction", "Optimization Strategy"]
+    )
+    
+    if ai_insight_type == "Pattern Recognition":
+        if super_agent:
+            patterns = super_agent.find_patterns(df)
+            for pattern in patterns:
+                with st.expander(f"📊 {pattern['name']}"):
+                    st.write(pattern['description'])
+                    if 'visual' in pattern:
+                        st.plotly_chart(pattern['visual'], use_container_width=True)
+        else:
+            st.info("Configure AI to enable pattern recognition")
+    
+    elif ai_insight_type == "Causal Analysis":
+        if super_agent:
+            causes = super_agent.analyze_root_causes(df)
+            st.write("**Root Cause Analysis:**")
+            for cause in causes:
+                st.write(f"• {cause['factor']}: {cause['impact']}")
+        else:
+            st.info("Configure AI to enable causal analysis")
+    
+    elif ai_insight_type == "Impact Prediction":
+        future_days = st.slider("Predict for next (days):", 1, 30, 7)
+        predictions = features['pfp'].predict_future_failures(df, days=future_days)
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=list(range(future_days)), y=predictions,
+                                mode='lines+markers', name='Predicted Failures'))
+        fig.update_layout(title="Failure Rate Prediction",
+                         xaxis_title="Days", yaxis_title="Failure Rate %")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    elif ai_insight_type == "Optimization Strategy":
+        if super_agent:
+            strategy = super_agent.generate_optimization_strategy(df)
+            st.write("**Recommended Optimization Strategy:**")
+            for step in strategy:
+                with st.expander(f"Step {step['priority']}: {step['action']}"):
+                    st.write(f"**Expected Outcome:** {step['expected_outcome']}")
+                    st.write(f"**Implementation Difficulty:** {step['difficulty']}")
+        else:
+            st.info("Configure AI to enable optimization strategies")
+    
+    st.divider()
+    
+    # Automation Controls
+    st.subheader("⚡ Automation Controls")
+    
+    auto_col1, auto_col2 = st.columns(2)
+    
+    with auto_col1:
+        st.write("**Automated Actions**")
+        auto_retry = st.checkbox("Enable Auto-Retry for Failed Transactions", value=True)
+        auto_route = st.checkbox("Enable Smart Transaction Routing", value=True)
+        auto_alert = st.checkbox("Enable Smart Alert System", value=True)
+        
+        if st.button("Apply Automation Settings"):
+            st.success("Automation settings updated!")
+    
+    with auto_col2:
+        st.write("**Threshold Settings**")
+        failure_threshold = st.slider("Failure Rate Alert Threshold (%)", 5, 25, 15)
+        risk_threshold = st.slider("Risk Score Alert Threshold", 0.0, 10.0, 7.0)
+        
+        if st.button("Update Thresholds"):
+            st.success("Thresholds updated!")
+    
+    st.divider()
+    
+    # Advanced Visualizations
+    st.subheader("📊 Advanced Visualizations")
+    
+    viz_type = st.selectbox(
+        "Select Visualization",
+        ["Risk Radar", "Branch Risk Heatmap", "Anomaly DNA Map", "Financial Impact Gauge"]
+    )
+    
+    if viz_type == "Risk Radar":
+        st.plotly_chart(create_real_time_risk_radar(df), use_container_width=True)
+    elif viz_type == "Branch Risk Heatmap":
+        st.plotly_chart(create_branch_risk_heatmap(df), use_container_width=True)
+    elif viz_type == "Anomaly DNA Map":
+        sigs = features['dna'].dna_signatures
+        st.plotly_chart(create_anomaly_dna_visualization(sigs), use_container_width=True)
+    elif viz_type == "Financial Impact Gauge":
+        impact_data = {
+            'current': (metrics['failed_amount'] / metrics['total_amount']) * 100,
+            'target': 5.0,
+            'critical': 15.0
+        }
+        st.plotly_chart(create_financial_impact_gauge(impact_data), use_container_width=True)
 
 # Tab 6: Branch Gamification System
 with tabs[5]:
     st.header("🏆 Branch Gamification System")
-    # ... (same as before) ...
+    
+    # Main leaderboard
+    leaderboard = features['gamification'].get_leaderboard()
+    
+    st.subheader("🏅 Current Leaderboard")
+    
+    # Create leaderboard visualization
+    fig = go.Figure(data=[
+        go.Bar(
+            y=leaderboard['branch_name'],
+            x=leaderboard['total_points'],
+            orientation='h',
+            marker_color=['gold', 'silver', '#CD7F32', '#4A90E2', '#4A90E2']
+        )
+    ])
+    
+    fig.update_layout(
+        title="Branch Performance Points",
+        xaxis_title="Points",
+        yaxis_title="Branch",
+        height=400,
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Branch details
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        selected_branch = st.selectbox("Select Branch Details", df['branch_name'].unique())
+    
+    with col2:
+        branch_details = features['gamification'].get_branch_details(selected_branch)
+        
+        st.write(f"**{selected_branch} Performance**")
+        
+        metric_cols = st.columns(4)
+        with metric_cols[0]:
+            st.metric("Current Level", f"Level {branch_details['level']}")
+        with metric_cols[1]:
+            st.metric("Total Points", f"{branch_details['total_points']:,}")
+        with metric_cols[2]:
+            st.metric("Current Streak", f"{branch_details['current_streak']} days")
+        with metric_cols[3]:
+            st.metric("Achievement Count", branch_details['achievement_count'])
+    
+    st.divider()
+    
+    # Achievements Section
+    st.subheader("🎖️ Achievements & Badges")
+    
+    achievements = features['gamification'].check_achievements(selected_branch)
+    
+    if achievements:
+        ach_cols = st.columns(3)
+        for idx, achievement in enumerate(achievements):
+            with ach_cols[idx % 3]:
+                st.markdown(f"""
+                <div class="achievement-card">
+                    <h4>{achievement['badge']} {achievement['name']}</h4>
+                    <p>{achievement['description']}</p>
+                    <small>+{achievement['points']} points</small>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Performance Challenges
+    st.subheader("🎯 Active Challenges")
+    
+    challenges = [
+        {
+            'name': 'Zero Failure Champion',
+            'description': 'Achieve 0% failure rate for 24 hours',
+            'reward': '500 points + Legendary Badge',
+            'progress': 75,
+            'deadline': '48 hours'
+        },
+        {
+            'name': 'Peak Performance',
+            'description': 'Maintain < 5% failure rate during peak hours',
+            'reward': '300 points',
+            'progress': 60,
+            'deadline': '7 days'
+        },
+        {
+            'name': 'Customer Satisfaction Hero',
+            'description': 'Process 1000 successful transactions in a row',
+            'reward': '400 points + Super Badge',
+            'progress': 85,
+            'deadline': '3 days'
+        }
+    ]
+    
+    for challenge in challenges:
+        with st.expander(f"🎯 {challenge['name']} - {challenge['progress']}% Complete"):
+            st.write(f"**Description:** {challenge['description']}")
+            st.write(f"**Reward:** {challenge['reward']}")
+            st.write(f"**Deadline:** {challenge['deadline']}")
+            st.progress(challenge['progress'] / 100)
+            
+            if st.button(f"View Details", key=f"challenge_{challenge['name']}"):
+                st.info("Detailed challenge metrics would appear here")
+    
+    st.divider()
+    
+    # Team Performance
+    st.subheader("👥 Team Performance & Collaboration")
+    
+    team_col1, team_col2 = st.columns(2)
+    
+    with team_col1:
+        st.write("**Top Performing Teams**")
+        team_data = {
+            'Team': ['North Region', 'South Region', 'Central Region', 'East Region'],
+            'Points': [4500, 4200, 3800, 3600],
+            'Average Failure Rate': ['8.2%', '9.1%', '10.5%', '11.3%']
+        }
+        st.dataframe(pd.DataFrame(team_data), use_container_width=True)
+    
+    with team_col2:
+        st.write("**Collaboration Bonuses**")
+        collab_bonuses = {
+            'Cross-Branch Support': '+100 points',
+            'Knowledge Sharing': '+50 points',
+            'Best Practice Implementation': '+200 points',
+            'Mentoring New Staff': '+150 points'
+        }
+        
+        for bonus, points in collab_bonuses.items():
+            st.write(f"• {bonus}: {points}")
+    
+    st.divider()
+    
+    # Rewards & Incentives
+    st.subheader("🎁 Rewards & Incentives")
+    
+    reward_col1, reward_col2, reward_col3 = st.columns(3)
+    
+    with reward_col1:
+        st.write("**Monthly Rewards**")
+        monthly_rewards = {
+            '1st Place': 'Employee of the Month + $500',
+            '2nd Place': 'Gift Card + $300',
+            '3rd Place': 'Extra Day Off + $200'
+        }
+        for place, reward in monthly_rewards.items():
+            st.write(f"🏆 {place}: {reward}")
+    
+    with reward_col2:
+        st.write("**Achievement Unlocks**")
+        unlocks = {
+            'Level 5': 'Premium Parking Spot',
+            'Level 10': 'Executive Lunch Privileges',
+            'Level 15': 'Work from Home Flexibility',
+            'Level 20': 'Training Budget Increase'
+        }
+        for level, unlock in unlocks.items():
+            st.write(f"🔓 {level}: {unlock}")
+    
+    with reward_col3:
+        st.write("**Special Recognition**")
+        special = {
+            'Consistency Star': '30-day perfect record',
+            'Innovation Award': 'Process improvement',
+            'Customer Champion': 'Highest satisfaction',
+            'Team Player': 'Best collaboration'
+        }
+        for award, criteria in special.items():
+            st.write(f"⭐ {award}: {criteria}")
+    
+    st.divider()
+    
+    # Personal Dashboard
+    st.subheader("📊 Personal Performance Dashboard")
+    
+    # Simulate personal metrics for demo
+    personal_metrics = {
+        'Your Points': 1250,
+        'Your Level': 8,
+        'Next Level': '250 points',
+        'Global Rank': '#42 of 150',
+        'Team Rank': '#5 of 25'
+    }
+    
+    personal_cols = st.columns(5)
+    for idx, (metric, value) in enumerate(personal_metrics.items()):
+        with personal_cols[idx]:
+            st.metric(metric, value)
+    
+    # Progress to next level
+    st.write("**Progress to Next Level**")
+    progress = (personal_metrics['Your Points'] % 500) / 500  # Assume 500 points per level
+    st.progress(progress)
+    st.write(f"{int(progress * 100)}% to Level {personal_metrics['Your Level'] + 1}")
+    
+    # Recent achievements
+    st.write("**Your Recent Achievements**")
+    recent_achievements = [
+        {'name': 'Quick Resolver', 'date': 'Today', 'points': '+50'},
+        {'name': '100 Streak', 'date': 'Yesterday', 'points': '+100'},
+        {'name': 'Peak Performer', 'date': '2 days ago', 'points': '+75'}
+    ]
+    
+    for ach in recent_achievements:
+        st.write(f"🏅 {ach['name']} - {ach['date']} ({ach['points']} points)")
 
 # Sidebar
 with st.sidebar:
