@@ -1,0 +1,536 @@
+{
+  "name": "Financial Alerts & Reports",
+  "active": true,
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Daily Z Mall Failures Trigger",
+      "type": "n8n-nodes-base.Cron",
+      "typeVersion": 1,
+      "position": [100, 100],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 23,
+              "minute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Read CSV File (Daily)",
+      "type": "n8n-nodes-base.ReadBinaryFile",
+      "typeVersion": 1,
+      "position": [300, 100],
+      "parameters": {
+        "filePath": "/data/jordan_transactions.csv"
+      }
+    },
+    {
+      "id": "3",
+      "name": "Parse CSV (Daily)",
+      "type": "n8n-nodes-base.CSVToJSON",
+      "typeVersion": 1,
+      "position": [500, 100],
+      "parameters": {}
+    },
+    {
+      "id": "4",
+      "name": "Filter Z Mall Failures",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [700, 100],
+      "parameters": {
+        "functionCode": "const rows = items.map(i => i.json);\nconst yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);\nconst start = new Date(yesterday.toDateString());\nconst end = new Date();\nconst results = rows.filter(r => {\n  const d = new Date(r.transaction_date);\n  return r.mall_name === 'Z Mall' && r.transaction_status === 'Failed' && d >= start && d < end;\n});\nreturn results.map(r => ({ json: r }));"
+      }
+    },
+    {
+      "id": "5",
+      "name": "Format Daily Digest Message",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [900, 100],
+      "parameters": {
+        "functionCode": "const date = new Date().toISOString().split('T')[0];\nconst total = items.length;\nconst branches = [...new Set(items.map(i => i.json.branch))].length;\nlet table = '| Time | Branch | Txn ID | Amount (JOD) | Status |\\n|---|---|---|---|---|\\n';\nitems.forEach(i => {\n  const r = i.json;\n  const t = new Date(r.transaction_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });\n  table += `| ${t} | ${r.branch} | ${r.txn_id} | ${r.amount} | ${r.transaction_status} |\\n`;\n});\nconst msg = `*📅 Daily Failure Digest — Z Mall (${date})*\\n\\n> *Total Failed Transactions:* ${total}  \\n> *Branches Affected:* ${branches}\\n\\n${table}\\n_This message was sent automatically by our n8n workflow._`;\nreturn [{ json: { text: msg } }];"
+      }
+    },
+    {
+      "id": "6",
+      "name": "Send Telegram Digest",
+      "type": "n8n-nodes-base.Telegram",
+      "typeVersion": 1,
+      "position": [1100, 100],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "<YOUR_CHAT_ID>",
+        "text": "={{$json[\"text\"]}}",
+        "options": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "7",
+      "name": "Hourly Failure-Rate Trigger",
+      "type": "n8n-nodes-base.Cron",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyHour",
+              "minute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8",
+      "name": "Read CSV File (Hourly)",
+      "type": "n8n-nodes-base.ReadBinaryFile",
+      "typeVersion": 1,
+      "position": [300, 300],
+      "parameters": {
+        "filePath": "/data/jordan_transactions.csv"
+      }
+    },
+    {
+      "id": "9",
+      "name": "Parse CSV (Hourly)",
+      "type": "n8n-nodes-base.CSVToJSON",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "parameters": {}
+    },
+    {
+      "id": "10",
+      "name": "Compute Failure Rates",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [700, 300],
+      "parameters": {
+        "functionCode": "const rows = items.map(i => i.json);\nconst counts = {};\nrows.forEach(r => {\n  const b = r.branch;\n  counts[b] = counts[b] || { total: 0, fail: 0 };\n  counts[b].total++;\n  if (r.transaction_status === 'Failed') counts[b].fail++;\n});\nconst alerts = [];\nfor (const b in counts) {\n  const { total, fail } = counts[b];\n  const rate = (fail / total * 100).toFixed(1);\n  if (rate > 5) alerts.push({ branch: b, total, fail, rate });\n}\nreturn alerts.map(a => ({ json: a }));"
+      }
+    },
+    {
+      "id": "11",
+      "name": "Format Failure-Rate Alert",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "parameters": {
+        "functionCode": "if (items.length === 0) {\n  return [{ json: { text: '🚨 No branches exceeding failure threshold (5%) detected today.\\n_This alert was sent via n8n automation._' } }];\n}\nlet msg = '🚨 *ALERT:* High Failure Rate Detected!\\n\\n';\nitems.forEach(i => {\n  const d = i.json;\n  msg += `• *Branch:* ${d.branch}\\n• *Total Txns:* ${d.total}\\n• *Failures:* ${d.fail}\\n• *Failure Rate:* ${d.rate}% _(threshold: 5%)_\\n\\n`;\n});\nmsg += '_This alert was triggered and sent via n8n automation._';\nreturn [{ json: { text: msg } }];"
+      }
+    },
+    {
+      "id": "12",
+      "name": "Send Telegram Failure Alert",
+      "type": "n8n-nodes-base.Telegram",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "<YOUR_CHAT_ID>",
+        "text": "={{$json[\"text\"]}}",
+        "options": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "13",
+      "name": "Monthly Tax Report Trigger",
+      "type": "n8n-nodes-base.Cron",
+      "typeVersion": 1,
+      "position": [100, 500],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "monthly",
+              "dayOfMonth": 1,
+              "hour": 8,
+              "minute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "14",
+      "name": "Read CSV File (Monthly)",
+      "type": "n8n-nodes-base.ReadBinaryFile",
+      "typeVersion": 1,
+      "position": [300, 500],
+      "parameters": {
+        "filePath": "/data/jordan_transactions.csv"
+      }
+    },
+    {
+      "id": "15",
+      "name": "Parse CSV (Monthly)",
+      "type": "n8n-nodes-base.CSVToJSON",
+      "typeVersion": 1,
+      "position": [500, 500],
+      "parameters": {}
+    },
+    {
+      "id": "16",
+      "name": "Compute Monthly Tax",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [700, 500],
+      "parameters": {
+        "functionCode": "const rows = items.map(i => i.json);\nconst cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 1);\nconst sums = {};\nrows.forEach(r => {\n  const d = new Date(r.transaction_date);\n  if (d >= cutoff) {\n    sums[r.branch] = (sums[r.branch] || 0) + parseFloat(r.tax_amount);\n  }\n});\nreturn Object.entries(sums).map(([branch, tax]) => ({ json: { branch, tax: tax.toFixed(2) } }));"
+      }
+    },
+    {
+      "id": "17",
+      "name": "Format Monthly Tax Report",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [900, 500],
+      "parameters": {
+        "functionCode": "const now = new Date();\nconst month = now.toLocaleString('default', { month: 'long', year: 'numeric' });\nlet table = '| Branch | Tax Collected (JOD) |\\n|---|---|\\n';\nitems.forEach(i => { table += `| ${i.json.branch} | ${i.json.tax} |\\n`; });\nconst msg = `*📅 Monthly Tax Collection — ${month}*\\n\\n${table}\\n✅ Report generated and sent to Finance Dept.\\n_This report was delivered automatically by our n8n workflow._`;\nreturn [{ json: { text: msg } }];"
+      }
+    },
+    {
+      "id": "18",
+      "name": "Send Telegram Tax Report",
+      "type": "n8n-nodes-base.Telegram",
+      "typeVersion": 1,
+      "position": [1100, 500],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "<YOUR_CHAT_ID>",
+        "text": "={{$json[\"text\"]}}",
+        "options": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "19",
+      "name": "Anomaly Detection Trigger",
+      "type": "n8n-nodes-base.Cron",
+      "typeVersion": 1,
+      "position": [100, 700],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyMinute",
+              "minute": "*/15"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20",
+      "name": "Read CSV File (Anomaly)",
+      "type": "n8n-nodes-base.ReadBinaryFile",
+      "typeVersion": 1,
+      "position": [300, 700],
+      "parameters": {
+        "filePath": "/data/jordan_transactions.csv"
+      }
+    },
+    {
+      "id": "21",
+      "name": "Parse CSV (Anomaly)",
+      "type": "n8n-nodes-base.CSVToJSON",
+      "typeVersion": 1,
+      "position": [500, 700],
+      "parameters": {}
+    },
+    {
+      "id": "22",
+      "name": "Compute Anomalies",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [700, 700],
+      "parameters": {
+        "functionCode": "const rows = items.map(i => i.json).map(r => ({ branch: r.branch, time: r.transaction_date, amount: parseFloat(r.amount) }));\nconst amounts = rows.map(r => r.amount);\nconst mean = amounts.reduce((a, b) => a + b, 0) / amounts.length;\nconst std = Math.sqrt(amounts.map(a => (a - mean) ** 2).reduce((a, b) => a + b, 0) / amounts.length);\nconst alerts = rows.filter(r => Math.abs(r.amount - mean) > 3 * std).map(r => ({ ...r, mean: mean.toFixed(2), std: std.toFixed(2), z: ((r.amount - mean) / std).toFixed(1) }));\nreturn alerts.map(a => ({ json: a }));"
+      }
+    },
+    {
+      "id": "23",
+      "name": "Format Anomaly Message",
+      "type": "n8n-nodes-base.Function",
+      "typeVersion": 1,
+      "position": [900, 700],
+      "parameters": {
+        "functionCode": "if (items.length === 0) return [];\nconst a = items[0].json;\nconst msg = `⚠️ *Anomaly Detected!*\\n\\n• *Branch:* ${a.branch}\\n• *Timestamp:* ${a.time}\\n• *Transaction Amount:* JOD ${a.amount} _(mean: ${a.mean} JOD, σ: ${a.std} JOD)_\\n• *Z-Score:* ${a.z}\\n\\nThis unusually large transaction should be reviewed for potential fraud.\\n_Notification sent automatically via n8n._`;\nreturn [{ json: { text: msg } }];"
+      }
+    },
+    {
+      "id": "24",
+      "name": "Send Telegram Anomaly Alert",
+      "type": "n8n-nodes-base.Telegram",
+      "typeVersion": 1,
+      "position": [1100, 700],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "<YOUR_CHAT_ID>",
+        "text": "={{$json[\"text\"]}}",
+        "options": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Z Mall Failures Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read CSV File (Daily)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CSV File (Daily)": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV (Daily)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV (Daily)": {
+      "main": [
+        [
+          {
+            "node": "Filter Z Mall Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Z Mall Failures": {
+      "main": [
+        [
+          {
+            "node": "Format Daily Digest Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Daily Digest Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly Failure-Rate Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read CSV File (Hourly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CSV File (Hourly)": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV (Hourly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV (Hourly)": {
+      "main": [
+        [
+          {
+            "node": "Compute Failure Rates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Failure Rates": {
+      "main": [
+        [
+          {
+            "node": "Format Failure-Rate Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Failure-Rate Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly Tax Report Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read CSV File (Monthly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CSV File (Monthly)": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV (Monthly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV (Monthly)": {
+      "main": [
+        [
+          {
+            "node": "Compute Monthly Tax",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Monthly Tax": {
+      "main": [
+        [
+          {
+            "node": "Format Monthly Tax Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Monthly Tax Report": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Tax Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anomaly Detection Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read CSV File (Anomaly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CSV File (Anomaly)": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV (Anomaly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV (Anomaly)": {
+      "main": [
+        [
+          {
+            "node": "Compute Anomalies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Anomalies": {
+      "main": [
+        [
+          {
+            "node": "Format Anomaly Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Anomaly Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Anomaly Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
